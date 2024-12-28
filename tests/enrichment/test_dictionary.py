@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 import tempfile
 import pytest
+from unittest.mock import patch
 
 
 CONFIG = utils.config.from_yaml(
@@ -92,7 +93,7 @@ TEST_TRANSLATION_DICTIONARY_DICT = [
 def test_dictionary_filename():
     dictionary_folder = Path("/test/dictionary")
     target_language = "fr"
-    source_language = "auto"
+    source_language = None
 
     dictionary_path = Path("/test/dictionary") / "dictionary_auto_to_fr.json"
     assert str(dictionary_path) == enrichment.dictionary.filename(
@@ -115,6 +116,16 @@ def test_dictionary_creating_and_loading():
             dictionary_folder, target_language=target_language, source_language=source_language
         )
         assert empty_dictionary == {}
+
+        with patch.object(TranslationDictionary, "__init__", new=lambda cls: []):
+            with pytest.raises(RuntimeError, match="Could not read translation dictionary at"):
+                target_language = "ar"
+                source_language = "auto"
+                enrichment.dictionary.load(
+                    dictionary_folder,
+                    target_language=target_language,
+                    source_language=source_language,
+                )
 
 
 def test_dictionary_saving_and_loading():
@@ -187,6 +198,14 @@ def test_dictionary_from_dataset():
     client = utils.client.create(**CONFIG["toolbox_test_instance"])
     dataset = client.datasets.by_resource_id(DICTIONARY_DATASET_ID)
     assert enrichment.dictionary.from_dataset(dataset) == TEST_TRANSLATION_DICTIONARY
+
+    with patch.object(TranslationDictionary, "__init__", new=lambda cls: []):
+        client = utils.client.create(**CONFIG["toolbox_test_instance"])
+        dataset = client.datasets.by_resource_id(DICTIONARY_DATASET_ID)
+        with pytest.raises(
+            Exception, match="Error while reading the Tamr dataset translation dictionary"
+        ):
+            enrichment.dictionary.from_dataset(dataset)
 
 
 @mock_api()
